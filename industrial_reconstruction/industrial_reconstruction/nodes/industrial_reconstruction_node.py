@@ -46,10 +46,8 @@ class IndustrialReconstruction(object):
         rospy.loginfo("init start")
 
         self.bridge = CvBridge()
-
         self.buffer = Buffer()
         self.tf_listener = TransformListener(buffer=self.buffer)
-
         self.tsdf_volume = None
         self.intrinsics = None
         self.crop_box = None
@@ -308,9 +306,9 @@ class IndustrialReconstruction(object):
                         rgb_pose[1, 3] = rgb_t[1]
                         rgb_pose[2, 3] = rgb_t[2]
 
-                        self.depth_images.append(data[0])
-                        self.color_images.append(data[1])
-                        self.rgb_poses.append(rgb_pose)
+                        # self.depth_images.append(data[0])
+                        # self.color_images.append(data[1])
+                        # self.rgb_poses.append(rgb_pose)
                         if self.live_integration and self.tsdf_volume is not None:
                             self.integration_done = False
                             try:
