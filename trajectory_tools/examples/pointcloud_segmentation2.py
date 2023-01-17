@@ -14,11 +14,11 @@ if __name__ == "__main__":
     # pcd = cleanmesh.sample_points_poisson_disk(number_of_points=10000, init_factor=20)
     # ply_point_cloud = o3d.data.PLYPointCloud()
     # pcd = o3d.io.read_point_cloud("/home/libish/scanned mesh/15.ply")
-    pcd = o3d.io.read_point_cloud("/home/libish/meshy/highest222.ply")
+    pcd = o3d.io.read_point_cloud("/home/libish/testy3.ply")
 
     # Flip it, otherwise the pointcloud will be upside down.
     pcd.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-    plane_model, inliers = pcd.segment_plane(distance_threshold=0.0045,
+    plane_model, inliers = pcd.segment_plane(distance_threshold=0.01,
                                              ransac_n=5,
                                              num_iterations=1000)
     [a, b, c, d] = plane_model
@@ -66,6 +66,7 @@ if __name__ == "__main__":
     for i in range(max_label+1):
         hulls.append(ConvexHull(clusters[i]))
 
+    
     #find centroid of each convex hull
     hull_centroids = []
     for i in range(max_label+1):    
@@ -75,7 +76,7 @@ if __name__ == "__main__":
 
     hull_centroid_cloud = o3d.geometry.PointCloud() 
     hull_centroid_cloud.points = o3d.utility.Vector3dVector(hull_centroids)
-    o3d.visualization.draw([hull_centroid_cloud])   
+    o3d.visualization.draw([hull_centroid_cloud])
 
     #find convex hull of all clusters
     all_clusters = np.concatenate(clusters, axis=0)
@@ -113,10 +114,13 @@ if __name__ == "__main__":
     hull_centroids_orientation = np.concatenate(hull_centroids_orientation, axis=0)
 
 
-    Pose = np.column_stack((hull_centroids_x, hull_centroids_y, hull_centroids_z, hull_centroids_orientation[:,0], hull_centroids_orientation[:,1], hull_centroids_orientation[:,2]))
+    Pose = np.column_stack((hull_centroids_x, hull_centroids_y, hull_centroids_orientation[:,0], hull_centroids_orientation[:,1],))
     print(Pose)
     
+    
+    th.sequenncer
 
+    
     #find the cluster with the largest z value (closest to the camera)
     max_z = 0
     index = 0
@@ -191,13 +195,7 @@ if __name__ == "__main__":
         if centroids[i][2] < min_z:
             min_z = centroids[i][2]
             index_min_z = i
-    print(index_min_z)
-  
-    # Kdtree = o3d.geometry.KDTreeFlann(outlier_cloud)
-    # [k, idx, _] = Kdtree.search_knn_vector_3d(centroids[index], 100)
-    # print(k)
-    # print(idx)
-    # print(_)                    
+    print(index_min_z)     
      
      #convert to open3d pointcloud  
     cluster1 = o3d.geometry.PointCloud()
@@ -253,11 +251,12 @@ if __name__ == "__main__":
     centroid1.paint_uniform_color([0, 1, 0])
     o3d.visualization.draw([centroid1])
     o3d.io.write_point_cloud("centroid_libish6.ply", centroid1) 
+
     # # getpose from boundingbox
-    pose = np.identity(4)
-    pose[:3, 3] = np.asarray(centroid1[1])
-    pose[:3, :3] = np.asarray(oriented_bounding_box.get_rotation_matrix_from_quaternion()) 
-    print(pose)
+    pickup_pose = np.identity(4)
+    pickup_pose [:3, 3] = np.asarray(centroid1[1])
+    pickup_pose [:3, :3] = np.asarray(oriented_bounding_box.get_rotation_matrix_from_quaternion()) 
+    print(pickup_pose)
 
     #construct quaternion from rotation matrix
     quaternion = np.identity(4)
@@ -301,5 +300,3 @@ if __name__ == "__main__":
     #Plot centroid
     # plt.plot(cx, cy, cz,'x',ms=20)
     # plt.show()
-
-    
