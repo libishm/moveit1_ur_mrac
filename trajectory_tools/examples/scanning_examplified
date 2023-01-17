@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+
+from math import pi
+
+import rospy
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from industrial_reconstruction_msgs.msg import NormalFilterParams
+from industrial_reconstruction_msgs.srv import (StartReconstruction,
+                                                StartReconstructionRequest,
+                                                StopReconstruction,
+                                                StopReconstructionRequest)
+from move_group_sequence.move_group_sequence import (Circ, Lin, Ptp, Sequence,
+                                                     from_euler)
+from trajectory_tools.trajectory_handler import TrajectoryHandler
+
+import open3d as o3d
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull
+
+
+# reconstruction parameters
+start_srv_req = StartReconstructionRequest() 
+start_srv_req.tracking_frame = "tool0"
+start_srv_req.relative_frame = "base_link"
+start_srv_req.translation_distance = 0.0
+start_srv_req.rotational_distance = 0.0
+start_srv_req.live = True
+start_srv_req.tsdf_params.voxel_length = 0.0025
+start_srv_req.tsdf_params.sdf_trunc = 0.05
+start_srv_req.tsdf_params.min_box_values = Vector3(x=0.0, y=0.0, z=0.0)
+start_srv_req.tsdf_params.max_box_values = Vector3(x=0.0, y=0.0, z=0.0)
+start_srv_req.rgbd_params.depth_scale = 1000
+start_srv_req.rgbd_params.depth_trunc = 0.45
+start_srv_req.rgbd_params.convert_rgb_to_intensity = False
+start_srv_req.rgbd_params.max_depth = 0.45
+start_srv_req.rgbd_params.min_depth = 0.01
+
+stop_srv_req = StopReconstructionRequest()
+# stop_srv_req.archive_directory = '/dev_ws/src.reconstruction/'
+stop_srv_req.mesh_filepath = "/home/libish/testy4.ply"
+# stop_srv_req.normal_filters = [NormalFilterParams(
+#                     normal_direction=Vector3(x=0.0, y=0.0, z=1.0), angle=90)]
+# stop_srv_req.min_num_faces = 1000
+
+def robot_program():
+
+    ee_name = "D405"
+
+    rospy.wait_for_service("/start_reconstruction")
+    rospy.loginfo("robot program: waiting for /start_reconstruction srv")
+    start_recon = rospy.ServiceProxy("/start_reconstruction", StartReconstruction)
+    stop_recon = rospy.ServiceProxy("/stop_reconstruction", StopReconstruction)
+
+    start = (0.0, -pi / 2.0, pi / 2.0, 0.0, pi / 2.0, 0.0)
+    pose0 = Pose( position=Point(0.5, -0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose1 = Pose(
+    position=Point(0.6, -0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose2 = Pose(
+    position=Point(0.6, 0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose3 = Pose(
+    position=Point(0.8, 0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose4 = Pose(
+    position=Point(0.8, -0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose5 = Pose(
+    position=Point(0.9, -0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose6 = Pose(
+    position=Point(0.9, 0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose7 = Pose(
+    position=Point(1.1, -0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    pose8 = Pose(
+    position=Point(1.1, 0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    th = TrajectoryHandler()
+    th.publish_marker_array([pose1, pose2,pose3,pose4,pose5,pose6,pose7,pose8])
+
+    th.move_group.set_end_effector_link("tool0")
+
+    # attach camera and set new tcp
+    th.attach_camera(ee_name)
+    th.move_group.set_end_effector_link(f"{ee_name}/tcp")
+    rospy.loginfo(
+        f"{th.name}: end effector link set to {th.move_group.get_end_effector_link()}"
+    )
+
+    # Move into position to start reconstruction
+    th.sequencer.plan(Ptp(goal=start, vel_scale=0.5, acc_scale=0.5))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose0, vel_scale=0.5, acc_scale=0.5))
+    th.sequencer.execute()
+    # Start reconstruction with service srv_req
+    resp = start_recon(start_srv_req)
+
+    if resp:
+        rospy.loginfo("robot program: reconstruction started successfully")
+    else:
+        rospy.loginfo("robot program: failed to start reconstruction")
+
+    th.sequencer.plan(Lin(goal=pose1, vel_scale=0.5, acc_scale=0.5))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose2, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose3, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose4, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose5, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose6, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose7, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    th.sequencer.plan(Lin(goal=pose8, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+    # Stop reconstruction with service srv_req
+    resp = stop_recon(stop_srv_req) 
+
+    start_recon = rospy.ServiceProxy("/start_reconstruction", StartReconstruction)
+
+    th.move_to_pose(start)
+    
+
+    # import scanned mesh and extract poses from objects (perceptim pipline)
+
+    pose8 = Pose(
+    position=Point(1.1, 0.5, 0.3), orientation=Quaternion(0.0, 1.0, 0.0, 0.0)
+    )
+    th.sequencer.plan(Lin(goal=pose8, vel_scale=0.01, acc_scale=0.1))
+    th.sequencer.execute()
+
+
+
+    #create pickup poses from pose of objects
+    # mesh = o3d.io.read_triangle_mesh("/home/libish/scanned mesh/15.ply")
+    # print(mesh)
+    # o3d.visualization.draw_geometries([mesh])
+    # #simplify mesh      
+    # cleanmesh = mesh.simplify_quadric_decimation(20000)
+    # pcd = cleanmesh.sample_points_poisson_disk(number_of_points=10000, init_factor=20)
+    # ply_point_cloud = o3d.data.PLYPointCloud()
+    # pcd = o3d.io.read_point_cloud("/home/libish/scanned mesh/15.ply")
+    pcd = o3d.io.read_point_cloud("/home/libish/libish11.ply")
+    #pcd = o3d.io.read_point_cloud("/home/libish/testy1.ply")
+
+    # Flip it, otherwise the pointcloud will be upside down.
+    pcd.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+    plane_model, inliers = pcd.segment_plane(distance_threshold=0.01,
+                                             ransac_n=3,
+                                             num_iterations=1000)
+    [a, b, c, d] = plane_model
+    print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
+    print("Displaying pointcloud with planar points in red ...")
+    inlier_cloud = pcd.select_by_index(inliers)
+    inlier_cloud.paint_uniform_color([1.0, 0, 0])
+    outlier_cloud = pcd.select_by_index(inliers, invert=True)
+    o3d.visualization.draw([inlier_cloud, outlier_cloud])
+    with o3d.utility.VerbosityContextManager(
+            o3d.utility.VerbosityLevel.Debug) as cm:
+        labels = np.array(
+            outlier_cloud.cluster_dbscan(eps=0.025, min_points=50, print_progress=True))
+    max_label = labels.max()
+    print(f"point cloud has {max_label + 1} clusters")
+    colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
+    colors[labels < 0] = 0
+    outlier_cloud.colors = o3d.utility.Vector3dVector(colors[:, :3])
+    o3d.visualization.draw([outlier_cloud])
+    o3d.io.write_point_cloud("outlier_libish8.ply", outlier_cloud)
+    
+    outlier_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=16), fast_normal_computation=True)
+    outlier_cloud.orient_normals_towards_camera_location(camera_location=[0, 0, 0])
+    outlier_cloud.orient_normals_consistent_tangent_plane(30)
+
+    #create bounding box orientation
+    bbox = outlier_cloud.get_oriented_bounding_box()
+    bbox.color = (1, 0, 0)
+    o3d.visualization.draw_geometries([outlier_cloud, bbox])
+
+    #extract centroid from bounding box
+    centroid = bbox.get_center()
+    print(centroid)
+
+    #extract orientations from bounding box
+    R = bbox.get_rotation_matrix_from_xyz()
+    print(R)
+
+    #create pose from centroid and orientation
+    pose = np.eye(4)
+    pose[:3, :3] = R
+    pose[:3, 3] = centroid
+    print(pose)
+
+    hull = ConvexHull(outlier_cloud, qhull_options="QJ")
+    o3d.visualization.draw_geometries([outlier_cloud]) 
+
+    # #Get centroid
+    cx = np.mean(hull.points[hull.vertices,0])
+    cy = np.mean(hull.points[hull.vertices,1])
+    cz = np.mean(hull.points[hull.vertices,2])
+
+    #Plot convex hull
+    for simplex in hull.simplices:
+     points = labels
+    plt.plot(points[simplex, 0], points[simplex, 1], 'k-')
+
+    #Plot centroid
+    plt.plot(cx, cy, cz,'x',ms=20)
+    plt.show()
+
+
+    # #create pose from centroid and orientation
+
+    #extract euler angles from orientation
+
+    th.sequencer.plan(from_euler(goal=pose, vel_scale=0.5, acc_scale=0.5))
+    th.sequencer.execute()
+
+    
+    
+
+
+
+    if resp:
+        rospy.loginfo("robot program: reconstruction stopped successfully")
+    else:
+        rospy.loginfo("robot program: failed to stop reconstruction")
+
+if __name__ == "__main__":
+
+    robot_program()
